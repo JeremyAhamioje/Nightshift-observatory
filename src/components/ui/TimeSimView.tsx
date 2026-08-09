@@ -118,26 +118,26 @@ export default function TimeSimView() {
       animate={{ opacity: 1 }}
       className="fixed inset-0 top-12 flex flex-col items-center justify-start overflow-y-auto scroll-y bg-deep/50"
     >
-      <div className="w-full max-w-3xl px-6 py-8 space-y-6">
+      <div className="w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-8 space-y-6">
 
         {/* Header */}
         <div>
-          <h1 className="text-display text-3xl text-star mb-1">Time & Events</h1>
+          <h1 className="text-display text-2xl sm:text-3xl text-star mb-1">Time & Events</h1>
           <p className="text-sm text-cloud">Explore astronomical events through time. Adjust the date to see what the sky holds.</p>
         </div>
 
         {/* Time control card */}
-        <div className="glass border border-panel-border rounded-xl p-5">
+        <div className="glass border border-panel-border rounded-xl p-4 sm:p-5">
           <p className="text-label mb-3">Simulation Date</p>
 
-          <div className="flex items-center gap-3 mb-4">
-            <button onClick={() => slideDate(-365)} className="btn-toolbar">−1 yr</button>
-            <button onClick={() => slideDate(-30)} className="btn-toolbar">−30d</button>
-            <div className="flex-1 text-center">
-              <div className="text-2xl font-display text-star font-medium">
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-4">
+            <div className="w-full sm:flex-1 order-first sm:order-none text-center">
+              <div className="text-xl sm:text-2xl font-display text-star font-medium">
                 {simDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
               </div>
             </div>
+            <button onClick={() => slideDate(-365)} className="btn-toolbar">−1 yr</button>
+            <button onClick={() => slideDate(-30)} className="btn-toolbar">−30d</button>
             <button onClick={() => slideDate(30)} className="btn-toolbar">+30d</button>
             <button onClick={() => slideDate(365)} className="btn-toolbar">+1 yr</button>
           </div>
@@ -156,7 +156,7 @@ export default function TimeSimView() {
             style={{ accentColor: '#4d9ef7' }}
           />
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <button
                 onClick={togglePlaying}

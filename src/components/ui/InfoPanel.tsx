@@ -1,6 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAppStore } from '../../store/app'
-import { PLANETS, CONSTELLATIONS, DEEP_SPACE } from '../../data/astronomy'
+import { PLANETS, CONSTELLATIONS, DEEP_SPACE, MOON, ASTEROID_BELT, SPACECRAFT, type ExtraInfo } from '../../data/astronomy'
+
+// Moon, asteroid belt and spacecraft all share one info layout.
+const EXTRAS: ExtraInfo[] = [MOON, ASTEROID_BELT, ...SPACECRAFT]
 
 // ── Solar System info ─────────────────────────────────────────────────────────
 function PlanetInfo({ id }: { id: string }) {
@@ -158,6 +161,52 @@ function DeepSpaceInfo({ id }: { id: string }) {
   )
 }
 
+// ── Moon / Belt / Spacecraft info ─────────────────────────────────────────────
+function ExtraInfoPanel({ id }: { id: string }) {
+  const obj = EXTRAS.find(e => e.id === id)
+  if (!obj) return null
+
+  return (
+    <div className="animate-slide-up">
+      <div className="p-4 border-b border-panel-border">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-3 h-3 rounded-full" style={{ background: obj.color, boxShadow: `0 0 8px ${obj.glowColor}` }} />
+          <h2 className="text-display text-lg text-star font-semibold leading-tight">{obj.name}</h2>
+        </div>
+        <p className="text-2xs font-mono text-muted">{obj.tagline}</p>
+      </div>
+
+      <div className="p-3 border-b border-panel-border">
+        <p className="text-label mb-2">Key Facts</p>
+        <div className="space-y-0">
+          {obj.stats.map((s, i) => (
+            <StatRow key={i} label={s.label} value={s.value} />
+          ))}
+        </div>
+      </div>
+
+      {obj.sections.map((section, i) => (
+        <div key={i} className="p-4 border-b border-panel-border">
+          <p className="text-label mb-2">{section.label}</p>
+          <p className="text-xs text-cloud leading-relaxed">{section.body}</p>
+        </div>
+      ))}
+
+      <div className="p-4">
+        <p className="text-label mb-2">Fascinating Facts</p>
+        <div className="space-y-2">
+          {obj.facts.map((fact, i) => (
+            <div key={i} className="flex gap-2">
+              <span className="text-accent text-xs mt-0.5 flex-shrink-0">◆</span>
+              <p className="text-xs text-cloud leading-relaxed">{fact}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Shared utilities ──────────────────────────────────────────────────────────
 function StatRow({ label, value }: { label: string; value: string }) {
   return (
@@ -194,7 +243,7 @@ export default function InfoPanel() {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 20 }}
           transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className="fixed top-12 right-0 bottom-0 w-72 glass border-l border-panel-border z-40 flex flex-col"
+          className="fixed top-12 right-0 bottom-0 w-full max-w-full sm:w-80 sm:max-w-[85vw] glass border-l border-panel-border z-40 flex flex-col"
         >
           {/* Close button */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-panel-border flex-shrink-0">
@@ -207,9 +256,13 @@ export default function InfoPanel() {
             </button>
           </div>
 
-          {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto scroll-y">
-            {view === 'solar-system' && selectedId && <PlanetInfo id={selectedId} />}
+          {/* Scrollable content — extra bottom pad on mobile clears the floating toolbar */}
+          <div className="flex-1 overflow-y-auto scroll-y pb-24 sm:pb-0">
+            {view === 'solar-system' && selectedId && (
+              PLANETS.some(p => p.id === selectedId)
+                ? <PlanetInfo id={selectedId} />
+                : <ExtraInfoPanel id={selectedId} />
+            )}
             {view === 'constellations' && selectedId && <ConstellationInfo id={selectedId} />}
             {view === 'deep-space' && selectedId && <DeepSpaceInfo id={selectedId} />}
           </div>

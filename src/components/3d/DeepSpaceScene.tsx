@@ -4,6 +4,8 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { DEEP_SPACE, type DeepSpaceObject } from '../../data/astronomy'
 import { useAppStore } from '../../store/app'
+import BlackHole from './BlackHole'
+import PostProcessing from './PostProcessing'
 
 function Controls() {
   const { camera, gl } = useThree()
@@ -77,16 +79,35 @@ function Nebula({ obj, position }: { obj: DeepSpaceObject; position: [number, nu
     return new THREE.CanvasTexture(canvas)
   }, [obj.visualColor, obj.id])
 
-  useFrame((state) => {
+  useFrame(() => {
     if (!groupRef.current) return
-    groupRef.current.rotation.y += 0.0005
-    groupRef.current.rotation.z += 0.0002
-    const s = 1 + Math.sin(state.clock.elapsedTime * 0.3 + position[0]) * 0.02
+    // The black hole keeps a fixed orientation — its disk animates in its own shader
+    if (obj.type !== 'black-hole') {
+      groupRef.current.rotation.y += 0.0005
+      groupRef.current.rotation.z += 0.0002
+    }
     if (active) groupRef.current.scale.lerp(new THREE.Vector3(1.05, 1.05, 1.05), 0.05)
     else groupRef.current.scale.lerp(new THREE.Vector3(1, 1, 1), 0.05)
   })
 
   const size = obj.type === 'galaxy' ? 4 : obj.type === 'black-hole' ? 1.5 : 3
+
+  // Black holes get their own shader-driven treatment
+  if (obj.type === 'black-hole') {
+    return (
+      <group ref={groupRef} position={position}>
+        <BlackHole
+          radius={size}
+          glowColor={obj.glowColor}
+          active={active}
+          selected={isSelected}
+          onClick={(e) => { e.stopPropagation(); setSelected(isSelected ? null : obj.id) }}
+          onPointerEnter={(e) => { e.stopPropagation(); setHovered(obj.id) }}
+          onPointerLeave={(e) => { e.stopPropagation(); setHovered(null) }}
+        />
+      </group>
+    )
+  }
 
   return (
     <group ref={groupRef} position={position}>
@@ -102,35 +123,13 @@ function Nebula({ obj, position }: { obj: DeepSpaceObject; position: [number, nu
         onPointerEnter={(e) => { e.stopPropagation(); setHovered(obj.id) }}
         onPointerLeave={(e) => { e.stopPropagation(); setHovered(null) }}
       >
-        {obj.type === 'black-hole' ? (
-          <sphereGeometry args={[size, 32, 32]} />
-        ) : obj.type === 'galaxy' ? (
+        {obj.type === 'galaxy' ? (
           <cylinderGeometry args={[size, size * 0.3, size * 0.15, 32, 1, false]} />
         ) : (
           <sphereGeometry args={[size, 24, 24]} />
         )}
-        <meshBasicMaterial
-          map={obj.type !== 'black-hole' ? tex : undefined}
-          color={obj.type === 'black-hole' ? '#000000' : '#ffffff'}
-          transparent
-          opacity={obj.type === 'black-hole' ? 1 : 0.7}
-        />
+        <meshBasicMaterial map={tex} color="#ffffff" transparent opacity={0.7} />
       </mesh>
-
-      {/* Black hole accretion disk */}
-      {obj.type === 'black-hole' && (
-        <>
-          <mesh rotation={[Math.PI * 0.1, 0, 0]}>
-            <torusGeometry args={[size * 2.5, size * 0.6, 16, 64]} />
-            <meshBasicMaterial color={obj.glowColor} transparent opacity={active ? 0.5 : 0.3} />
-          </mesh>
-          <mesh rotation={[Math.PI * 0.1, 0, 0]}>
-            <torusGeometry args={[size * 1.5, size * 0.2, 8, 48]} />
-            <meshBasicMaterial color="#ff8844" transparent opacity={active ? 0.7 : 0.5} />
-          </mesh>
-          <pointLight color={obj.glowColor} intensity={active ? 1 : 0.4} distance={20} />
-        </>
-      )}
 
       {/* Nebula glow layers */}
       {(obj.type === 'nebula' || obj.type === 'pulsar') && (
@@ -214,6 +213,9 @@ const POSITIONS: [number, number, number][] = [
 ]
 
 export default function DeepSpaceScene() {
+  const blackHoleIndex = DEEP_SPACE.findIndex((o) => o.type === 'black-hole')
+  const blackHolePos = POSITIONS[blackHoleIndex] || [0, 0, 0]
+
   return (
     <>
       <color attach="background" args={['#020408']} />
@@ -225,6 +227,7 @@ export default function DeepSpaceScene() {
       ))}
 
       <Controls />
+      <PostProcessing lensTarget={blackHolePos} lensRadius={1.5} />
     </>
   )
 }

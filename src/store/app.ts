@@ -11,6 +11,7 @@ interface AppState {
   isPlaying: boolean
   showLabels: boolean
   showOrbits: boolean
+  sidebarOpen: boolean
 
   setView: (v: View) => void
   setSelected: (id: string | null) => void
@@ -20,7 +21,12 @@ interface AppState {
   togglePlaying: () => void
   toggleLabels: () => void
   toggleOrbits: () => void
+  toggleSidebar: () => void
+  setSidebarOpen: (open: boolean) => void
 }
+
+// Start open on tablet/desktop, collapsed on phones so the canvas isn't buried.
+const initialSidebarOpen = typeof window !== 'undefined' ? window.innerWidth >= 768 : true
 
 export const useAppStore = create<AppState>((set) => ({
   view: 'solar-system',
@@ -31,6 +37,7 @@ export const useAppStore = create<AppState>((set) => ({
   isPlaying: false,
   showLabels: true,
   showOrbits: true,
+  sidebarOpen: initialSidebarOpen,
 
   setView: (view) => set({ view, selectedId: null, hoveredId: null }),
   setSelected: (selectedId) => set({ selectedId }),
@@ -40,4 +47,6 @@ export const useAppStore = create<AppState>((set) => ({
   togglePlaying: () => set((s) => ({ isPlaying: !s.isPlaying })),
   toggleLabels: () => set((s) => ({ showLabels: !s.showLabels })),
   toggleOrbits: () => set((s) => ({ showOrbits: !s.showOrbits })),
+  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+  setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
 }))

@@ -513,3 +513,132 @@ export const COSMIC_EVENTS: CosmicEvent[] = [
     icon: '✨',
   },
 ]
+
+// ─── SOLAR SYSTEM EXTRAS (moon, belt, spacecraft) ────────────────────────────
+// A shared shape for selectable objects that aren't planets. Rendered with the
+// same info-panel layout and the same click-to-focus behaviour as planets.
+
+export interface ExtraInfo {
+  id: string
+  name: string
+  tagline: string
+  color: string
+  glowColor: string
+  stats: { label: string; value: string }[]
+  sections: { label: string; body: string }[]
+  facts: string[]
+}
+
+export interface Spacecraft extends ExtraInfo {
+  /** Fixed position in the 3D scene (display units — placed far beyond Neptune). */
+  position: [number, number, number]
+  model: 'voyager' | 'jwst'
+  /** How close the camera parks when you focus it. */
+  focusRadius: number
+}
+
+export const MOON: ExtraInfo = {
+  id: 'moon',
+  name: 'The Moon',
+  tagline: "Earth's only natural satellite",
+  color: '#c8c4bc',
+  glowColor: '#e8e4dc',
+  stats: [
+    { label: 'Diameter', value: '3,474 km' },
+    { label: 'Distance from Earth', value: '384,400 km' },
+    { label: 'Orbital Period', value: '27.3 days' },
+    { label: 'Surface Temp', value: '-173°C to 127°C' },
+    { label: 'Gravity', value: '1/6 of Earth' },
+  ],
+  sections: [
+    { label: 'Overview', body: "The Moon is the fifth-largest satellite in the solar system and the only world beyond Earth that humans have walked on. Its gravity drives our ocean tides and stabilizes Earth's axial tilt, keeping our climate steady over millions of years." },
+    { label: 'Origin', body: 'The leading theory says the Moon formed 4.5 billion years ago when a Mars-sized body called Theia struck the young Earth, flinging debris into orbit that coalesced into the Moon.' },
+  ],
+  facts: [
+    'The Moon is slowly drifting away from Earth — about 3.8 cm per year',
+    'It is tidally locked, so we always see the same near side',
+    'Twelve people have walked on its surface, all between 1969 and 1972',
+    'Its far side is far more cratered than the side facing Earth',
+  ],
+}
+
+export const ASTEROID_BELT: ExtraInfo = {
+  id: 'asteroid-belt',
+  name: 'The Asteroid Belt',
+  tagline: 'Rocky remnants between Mars & Jupiter',
+  color: '#9a8a72',
+  glowColor: '#c8b088',
+  stats: [
+    { label: 'Location', value: '2.2–3.2 AU from Sun' },
+    { label: 'Known Objects', value: 'Over 1.3 million' },
+    { label: 'Largest Body', value: 'Ceres (940 km)' },
+    { label: 'Total Mass', value: '~4% of the Moon' },
+  ],
+  sections: [
+    { label: 'Overview', body: 'A vast ring of rocky bodies orbiting the Sun between Mars and Jupiter. Despite its dense look in diagrams, the belt is mostly empty space — spacecraft pass through it without any danger of collision.' },
+    { label: 'The Science', body: "Jupiter's immense gravity stirred this region so violently that the material never coalesced into a planet. What remains are leftover planetesimals from the solar system's birth, 4.6 billion years ago." },
+  ],
+  facts: [
+    'If you combined every asteroid, the result would be smaller than the Moon',
+    'Ceres, the largest, is classified as a dwarf planet',
+    'The gaps in the belt (Kirkwood gaps) are carved by Jupiter\'s resonances',
+    'NASA\'s Dawn mission orbited both Vesta and Ceres in the belt',
+  ],
+}
+
+export const SPACECRAFT: Spacecraft[] = [
+  {
+    id: 'voyager-1',
+    name: 'Voyager 1',
+    tagline: 'Humanity\'s most distant emissary',
+    color: '#d9b84a',
+    glowColor: '#ffd45a',
+    position: [128, 42, -150],
+    model: 'voyager',
+    focusRadius: 10,
+    stats: [
+      { label: 'Launched', value: 'Sep 5, 1977' },
+      { label: 'Distance', value: '~24.5 billion km' },
+      { label: 'From Sun', value: '~164 AU' },
+      { label: 'Speed', value: '61,000 km/h' },
+      { label: 'Status', value: 'Active · interstellar space' },
+    ],
+    sections: [
+      { label: 'Overview', body: 'Voyager 1 is the farthest human-made object from Earth. Launched in 1977 to study the outer planets, it is now travelling through interstellar space — the region between the stars — and still faintly phoning home nearly five decades later.' },
+      { label: 'The Mission', body: 'After stunning flybys of Jupiter and Saturn, Voyager 1 kept going. In 2012 it crossed the heliopause, the boundary where the Sun\'s influence gives way to interstellar space, becoming the first craft to leave the solar bubble.' },
+    ],
+    facts: [
+      'It carries the Golden Record — sounds and images of Earth for any who might find it',
+      'Its radio signal, travelling at light speed, takes over 22 hours to reach us',
+      'It runs on a plutonium battery producing less power than a few lightbulbs',
+      'In 1990 it took the "Pale Blue Dot" photo of Earth from 6 billion km away',
+    ],
+  },
+  {
+    id: 'jwst',
+    name: 'James Webb Telescope',
+    tagline: 'Infrared eye on the early universe',
+    color: '#e2b23a',
+    glowColor: '#ffcf5c',
+    position: [-104, 26, 96],
+    model: 'jwst',
+    focusRadius: 9,
+    stats: [
+      { label: 'Launched', value: 'Dec 25, 2021' },
+      { label: 'Location', value: 'Sun-Earth L2' },
+      { label: 'Distance', value: '1.5 million km from Earth' },
+      { label: 'Mirror', value: '6.5 m · 18 segments' },
+      { label: 'Status', value: 'Active · observing' },
+    ],
+    sections: [
+      { label: 'Overview', body: 'The James Webb Space Telescope is the largest and most powerful observatory ever launched. From a gravitational parking spot far beyond the Moon, it gathers infrared light to peer through cosmic dust and back toward the very first galaxies.' },
+      { label: 'The Science', body: 'Its 6.5-metre gold-coated mirror and tennis-court-sized sunshield let it detect heat from objects 13.5 billion light-years away — light that left them just after the Big Bang. It has already imaged some of the earliest galaxies ever seen.' },
+    ],
+    facts: [
+      'Its sunshield has five layers and keeps the mirror colder than -223°C',
+      'The mirror segments are coated in a microscopically thin layer of real gold',
+      'It orbits the L2 point, staying in line with Earth as both circle the Sun',
+      'It sees in infrared, revealing stars and planets being born inside dust clouds',
+    ],
+  },
+]

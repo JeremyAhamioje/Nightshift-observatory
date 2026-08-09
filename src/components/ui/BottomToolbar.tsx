@@ -22,13 +22,15 @@ export default function BottomToolbar() {
   const showViewControls = view === 'solar-system'
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.3 }}
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50"
-    >
-      <div className="glass border border-panel-border rounded-xl px-3 py-2 flex items-center gap-1 shadow-panel">
+    // Centre with flexbox, not a transform — framer-motion's animated transform
+    // would otherwise clobber `-translate-x-1/2` and push the bar off-centre.
+    <div className="fixed bottom-3 sm:bottom-4 inset-x-0 z-50 flex justify-center px-2 pointer-events-none">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.3 }}
+        className="pointer-events-auto glass border border-panel-border rounded-xl px-2 sm:px-3 py-2 flex items-center gap-1 shadow-panel max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:flex-shrink-0"
+      >
 
         {/* Time controls */}
         {showTimeControls && (
@@ -128,14 +130,14 @@ export default function BottomToolbar() {
           </>
         )}
 
-        {/* Zoom hint */}
-        <div className="flex items-center gap-1.5 px-1.5">
+        {/* Zoom hint — desktop only; on touch it's pinch/drag and space is tight */}
+        <div className="hidden sm:flex items-center gap-1.5 px-1.5">
           <span className="text-2xs font-mono text-muted">Scroll: Zoom</span>
           <span className="text-2xs font-mono text-muted opacity-40">·</span>
           <span className="text-2xs font-mono text-muted">Drag: Orbit</span>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   )
 }
 

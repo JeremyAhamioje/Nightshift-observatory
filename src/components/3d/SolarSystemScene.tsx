@@ -1,14 +1,41 @@
-import { useRef, useMemo, useEffect, useCallback } from 'react'
+import { useRef, useMemo, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { PLANETS, type Planet } from '../../data/astronomy'
+import { PLANETS, SPACECRAFT, type Planet } from '../../data/astronomy'
 import { useAppStore } from '../../store/app'
+import { registerFocus, focusPositions } from './focusRegistry'
+import SpacecraftFleet from './Spacecraft'
 
-// ── Orbit Controls ────────────────────────────────────────────────────────────
+const ORIGIN = new THREE.Vector3(0, 0, 0)
+const OVERVIEW_CAM = new THREE.Vector3(0, 30, 80)
+
+// How far the camera parks from a focused object, and whether it should keep the
+// orbit pivot locked to that object's live position afterwards.
+function focusConfig(id: string): { radius: number; lock: boolean; overrideCam?: THREE.Vector3; lookAtOrigin?: boolean } {
+  if (id === 'asteroid-belt') return { radius: 0, lock: false, overrideCam: new THREE.Vector3(0, 16, 42), lookAtOrigin: true }
+  const planet = PLANETS.find(p => p.id === id)
+  if (planet) return { radius: planet.radius * 6 + 6, lock: true }
+  if (id === 'moon') return { radius: 3.2, lock: true }
+  const craft = SPACECRAFT.find(s => s.id === id)
+  if (craft) return { radius: craft.focusRadius, lock: true }
+  return { radius: 10, lock: true }
+}
+
+// ── Orbit Controls + selection focus ───────────────────────────────────────────
+// Owns OrbitControls plus a "fly to and lock onto" animation. Selecting an object
+// eases the camera to a vantage beside it and keeps the orbit pivot pinned to its
+// live position (so a moving planet stays framed). Grabbing the controls cancels
+// the fly-in but keeps the lock; zoom/orbit then work freely around the object.
 function Controls() {
   const { camera, gl } = useThree()
+  const { selectedId } = useAppStore()
   const ref = useRef<OrbitControls | null>(null)
+  const focusing = useRef(false)
+  const lockId = useRef<string | null>(null)
+  const staticTarget = useRef(new THREE.Vector3(0, 0, 0))
+  const camTarget = useRef(OVERVIEW_CAM.clone())
+
   useEffect(() => {
     const ctrl = new OrbitControls(camera, gl.domElement)
     ctrl.enableDamping = true
@@ -20,9 +47,90 @@ function Controls() {
     ctrl.rotateSpeed = 0.5
     ctrl.zoomSpeed = 0.8
     ref.current = ctrl
-    return () => ctrl.dispose()
+    // Touching the controls ends the fly-in so we never fight the user's input.
+    const cancelFocus = () => { focusing.current = false }
+    ctrl.addEventListener('start', cancelFocus)
+    return () => { ctrl.removeEventListener('start', cancelFocus); ctrl.dispose() }
   }, [camera, gl])
-  useFrame(() => ref.current?.update())
+
+  // Is an object already comfortably on screen at a sensible distance? If so we
+  // just lock onto it in place — no camera move — so clicking something you can
+  // already see never yanks the view to a canned angle.
+  const isWellFramed = (pos: THREE.Vector3) => {
+    const ndc = pos.clone().project(camera)
+    const onScreen = Math.abs(ndc.x) < 0.85 && Math.abs(ndc.y) < 0.85 && ndc.z < 1
+    const dist = camera.position.distanceTo(pos)
+    return onScreen && dist > 6 && dist < 80
+  }
+
+  // On selection change, decide whether to fly the camera or just re-lock in place.
+  useEffect(() => {
+    const ctrl = ref.current
+    if (!selectedId) {
+      lockId.current = null
+      staticTarget.current.copy(ORIGIN)
+      // Only fly back to the overview if we're currently way out (e.g. after
+      // visiting a distant spacecraft); otherwise just hand the pivot back.
+      if (camera.position.distanceTo(ORIGIN) > 95) {
+        camTarget.current.copy(OVERVIEW_CAM)
+        focusing.current = true
+      } else {
+        focusing.current = false
+      }
+      if (ctrl) ctrl.enablePan = true
+      return
+    }
+
+    const cfg = focusConfig(selectedId)
+    const pos = focusPositions.get(selectedId)?.clone() ?? ORIGIN.clone()
+
+    if (cfg.overrideCam) {
+      lockId.current = null
+      staticTarget.current.copy(cfg.lookAtOrigin ? ORIGIN : pos)
+      camTarget.current.copy(cfg.overrideCam)
+      focusing.current = true
+    } else {
+      lockId.current = cfg.lock ? selectedId : null
+      staticTarget.current.copy(pos)
+      if (isWellFramed(pos)) {
+        // Already visible — lock on without moving the camera.
+        focusing.current = false
+      } else {
+        // Off-screen or too far/near — fly to a 3/4 vantage beside it.
+        const dir = pos.lengthSq() > 0.01 ? pos.clone().normalize() : new THREE.Vector3(0.6, 0.35, 0.75).normalize()
+        camTarget.current.copy(pos).addScaledVector(dir, cfg.radius).add(new THREE.Vector3(0, cfg.radius * 0.45, 0))
+        focusing.current = true
+      }
+    }
+    // Panning would fight the lock, so disable it while an object is focused.
+    if (ctrl) ctrl.enablePan = false
+  }, [selectedId, camera])
+
+  const followDelta = useRef(new THREE.Vector3())
+
+  useFrame(() => {
+    const ctrl = ref.current
+    if (!ctrl) return
+
+    // Desired orbit pivot: the locked object's live position, else a static point.
+    const desired = lockId.current ? (focusPositions.get(lockId.current) ?? staticTarget.current) : staticTarget.current
+
+    if (focusing.current) {
+      // Fly-in: ease the pivot and the camera toward their goals independently.
+      ctrl.target.lerp(desired, 0.06)
+      camera.position.lerp(camTarget.current, 0.06)
+      if (camera.position.distanceTo(camTarget.current) < 0.5) focusing.current = false
+    } else {
+      // Lock-follow: translate the pivot AND the camera by the SAME delta so the
+      // orbit offset (distance + angle) is preserved exactly. Moving only the
+      // target would change the radius and make the object drift/yank away.
+      followDelta.current.copy(desired).sub(ctrl.target)
+      ctrl.target.add(followDelta.current)
+      camera.position.add(followDelta.current)
+    }
+
+    ctrl.update()
+  })
   return null
 }
 
@@ -293,6 +401,65 @@ function OrbitRing({ radius }: { radius: number }) {
   )
 }
 
+// ── Earth's Moon ────────────────────────────────────────────────────────────────
+// Rendered as a child of Earth's group so it orbits along with the planet. It
+// reports its live world position so the camera can fly to / lock onto it.
+function Moon({ earthRadius }: { earthRadius: number }) {
+  const orbitRef = useRef<THREE.Group>(null)
+  const bodyRef = useRef<THREE.Mesh>(null)
+  const { selectedId, hoveredId, setSelected, setHovered, isPlaying, timeScale } = useAppStore()
+  const isSelected = selectedId === 'moon'
+  const isHovered = hoveredId === 'moon'
+  const active = isSelected || isHovered
+  const angleRef = useRef(Math.random() * Math.PI * 2)
+  const worldPos = useRef(new THREE.Vector3())
+
+  const orbitR = earthRadius * 2.8
+  const moonR = Math.max(0.24, earthRadius * 0.27)
+
+  useFrame((_, delta) => {
+    // Orbit a little always so it reads as a moon; faster with the sim clock.
+    const rate = isPlaying ? 0.5 * Math.min(timeScale, 200) * 0.02 : 0.22
+    angleRef.current += delta * rate
+    if (orbitRef.current) {
+      orbitRef.current.position.set(Math.cos(angleRef.current) * orbitR, 0, Math.sin(angleRef.current) * orbitR)
+    }
+    if (bodyRef.current) {
+      bodyRef.current.getWorldPosition(worldPos.current)
+      registerFocus('moon', worldPos.current)
+      bodyRef.current.rotation.y += delta * 0.1
+    }
+  })
+
+  return (
+    <group>
+      {/* Faint orbit ring around Earth */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[orbitR - 0.015, orbitR + 0.015, 64]} />
+        <meshBasicMaterial color="#6a7a90" transparent opacity={0.18} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+
+      <group ref={orbitRef}>
+        {active && (
+          <mesh>
+            <sphereGeometry args={[moonR * 1.7, 16, 16]} />
+            <meshBasicMaterial color={isSelected ? '#4d9ef7' : '#ffffff'} transparent opacity={isSelected ? 0.16 : 0.06} depthWrite={false} />
+          </mesh>
+        )}
+        <mesh
+          ref={bodyRef}
+          onClick={(e) => { e.stopPropagation(); setSelected(isSelected ? null : 'moon') }}
+          onPointerEnter={(e) => { e.stopPropagation(); setHovered('moon') }}
+          onPointerLeave={(e) => { e.stopPropagation(); setHovered(null) }}
+        >
+          <sphereGeometry args={[moonR, 24, 24]} />
+          <meshStandardMaterial color="#b7b3aa" roughness={1} metalness={0} />
+        </mesh>
+      </group>
+    </group>
+  )
+}
+
 // ── Planet body ───────────────────────────────────────────────────────────────
 function PlanetBody({ planet, angle }: { planet: Planet; angle: number }) {
   const meshRef = useRef<THREE.Mesh>(null)
@@ -316,6 +483,7 @@ function PlanetBody({ planet, angle }: { planet: Planet; angle: number }) {
     const x = Math.cos(angleRef.current) * planet.orbitRadius
     const z = Math.sin(angleRef.current) * planet.orbitRadius
     groupRef.current.position.set(x, 0, z)
+    registerFocus(planet.id, groupRef.current.position)
 
     // Rotation
     const rotSpeed = planet.rotationPeriod !== 0 ? (1 / Math.abs(planet.rotationPeriod)) * Math.sign(planet.rotationPeriod) * delta * 2 : 0
@@ -328,6 +496,7 @@ function PlanetBody({ planet, angle }: { planet: Planet; angle: number }) {
   return (
     <group ref={groupRef} position={[x, 0, z]}>
       {planet.id === 'saturn' && <SaturnRings radius={planet.radius} />}
+      {planet.id === 'earth' && <Moon earthRadius={planet.radius} />}
 
       <mesh
         ref={meshRef}
@@ -361,28 +530,56 @@ function PlanetBody({ planet, angle }: { planet: Planet; angle: number }) {
   )
 }
 
-// ── Camera focus on selection ─────────────────────────────────────────────────
-function CameraFocus() {
-  const { camera } = useThree()
-  const { selectedId } = useAppStore()
-  const targetPos = useRef(new THREE.Vector3(0, 30, 80))
+// ── Asteroid belt ───────────────────────────────────────────────────────────────
+// A sparse scatter of rocks between Mars (r=15) and Jupiter (r=22). Instanced so
+// it's a single draw call regardless of count.
+function AsteroidBelt({ inner = 16.5, outer = 20, count = 48 }: { inner?: number; outer?: number; count?: number }) {
+  const meshRef = useRef<THREE.InstancedMesh>(null)
+  const groupRef = useRef<THREE.Group>(null)
+  const { isPlaying, timeScale } = useAppStore()
+
+  const geo = useMemo(() => new THREE.IcosahedronGeometry(0.1, 0), [])
+  const mat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: '#8a7c6a', roughness: 1, metalness: 0, flatShading: true }),
+    [],
+  )
+
+  const rocks = useMemo(() => {
+    return Array.from({ length: count }, () => ({
+      angle: Math.random() * Math.PI * 2,
+      radius: inner + Math.random() * (outer - inner),
+      y: (Math.random() - 0.5) * 1.1,
+      scale: 0.5 + Math.random() * 1.7,
+      rot: new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI),
+    }))
+  }, [count, inner, outer])
 
   useEffect(() => {
-    if (!selectedId) {
-      targetPos.current.set(0, 30, 80)
-      return
-    }
-    const planet = PLANETS.find(p => p.id === selectedId)
-    if (!planet) return
-    const orbitR = planet.orbitRadius
-    const dist = planet.radius * 8 + 5
-    targetPos.current.set(orbitR + dist, dist * 0.4, dist * 1.5)
-  }, [selectedId])
+    const mesh = meshRef.current
+    if (!mesh) return
+    const dummy = new THREE.Object3D()
+    rocks.forEach((r, i) => {
+      dummy.position.set(Math.cos(r.angle) * r.radius, r.y, Math.sin(r.angle) * r.radius)
+      dummy.rotation.copy(r.rot)
+      dummy.scale.setScalar(r.scale)
+      dummy.updateMatrix()
+      mesh.setMatrixAt(i, dummy.matrix)
+    })
+    mesh.instanceMatrix.needsUpdate = true
+  }, [rocks])
 
-  useFrame(() => {
-    camera.position.lerp(targetPos.current, 0.04)
+  useFrame((_, delta) => {
+    if (!groupRef.current) return
+    // Drift very slowly; speed up with the sim clock when it's running.
+    const rate = isPlaying ? 0.02 * Math.min(timeScale, 200) * 0.05 : 0.01
+    groupRef.current.rotation.y += delta * rate
   })
-  return null
+
+  return (
+    <group ref={groupRef}>
+      <instancedMesh ref={meshRef} args={[geo, mat, count]} />
+    </group>
+  )
 }
 
 // ── Main Scene ────────────────────────────────────────────────────────────────
@@ -412,7 +609,9 @@ export default function SolarSystemScene() {
         <PlanetBody key={p.id} planet={p} angle={planetAngles[i]} />
       ))}
 
-      <CameraFocus />
+      <AsteroidBelt />
+      <SpacecraftFleet />
+
       <Controls />
     </>
   )

@@ -90,7 +90,6 @@ export default function App() {
         )}
         {view === 'time-sim' && (
           <div className="pointer-events-auto">
-            <TopNav />
             <TimeSimView />
             <BottomToolbar />
           </div>
